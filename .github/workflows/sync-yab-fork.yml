@@ -1,0 +1,39 @@
+name: Sync Fork (coder11v/yab from yetanotherbrowser/yab)
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # Runs every 5 minutes
+  workflow_dispatch:
+
+permissions:
+  contents: write # Required for the keep-alive commit in this secondary repo
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger upstream merge on yab
+        env:
+          GH_TOKEN: ${{ secrets.GHUB_TOKEN_YAB }}
+        run: |
+          gh api \
+            --method POST \
+            /repos/coder11v/yab/merge-upstream \
+            -f branch="main"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Daily keep-alive commit (max 1 per day)
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          LAST_COMMIT_DATE=$(git log -1 --format=%cd --date=format-local:%Y-%m-%d || echo "")
+
+          if [ "$TODAY" != "$LAST_COMMIT_DATE" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@://github.com"
+            git commit --allow-empty -m "chore: keep scheduled workflow active ($TODAY)"
+            git push
+          else
+            echo "Already committed today ($TODAY), skipping."
+          fi
